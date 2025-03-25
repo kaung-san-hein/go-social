@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"net/http"
 	"strconv"
 
@@ -54,17 +53,15 @@ type FollowUser struct {
 //	@Router			/users/{userID}/follow [put]
 func (app *application) followUserHandler(w http.ResponseWriter, r *http.Request) {
 	followerUser := getUserFromContext(r)
-
-	// TODO: Revert back to auth userID
-	var payload FollowUser
-	if err := readJSON(w, r, &payload); err != nil {
+	followedID, err := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+	if err != nil {
 		app.badRequestResponse(w, r, err)
 		return
 	}
 
 	ctx := r.Context()
 
-	if err := app.store.Followers.Follow(ctx, followerUser.ID, payload.UserID); err != nil {
+	if err := app.store.Followers.Follow(ctx, followerUser.ID, followedID); err != nil {
 		switch err {
 		case store.ErrConflict:
 			app.conflictResponse(w, r, err)
@@ -94,18 +91,16 @@ func (app *application) followUserHandler(w http.ResponseWriter, r *http.Request
 //	@Security		ApiKeyAuth
 //	@Router			/users/{userID}/unfollow [put]
 func (app *application) unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
-	unfollowerUser := getUserFromContext(r)
-
-	// TDDO: Revert back to auth userID
-	var payload FollowUser
-	if err := readJSON(w, r, &payload); err != nil {
+	followerUser := getUserFromContext(r)
+	unfollowedID, err := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+	if err != nil {
 		app.badRequestResponse(w, r, err)
 		return
 	}
 
 	ctx := r.Context()
 
-	if err := app.store.Followers.Unfollow(ctx, unfollowerUser.ID, payload.UserID); err != nil {
+	if err := app.store.Followers.Unfollow(ctx, followerUser.ID, unfollowedID); err != nil {
 		app.internalServerError(w, r, err)
 		return
 	}
@@ -146,33 +141,33 @@ func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-func (app *application) userContextMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID, err := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
-		if err != nil {
-			app.badRequestResponse(w, r, err)
-			return
-		}
+// func (app *application) userContextMiddleware(next http.Handler) http.Handler {
+// 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// 		userID, err := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+// 		if err != nil {
+// 			app.badRequestResponse(w, r, err)
+// 			return
+// 		}
 
-		ctx := r.Context()
+// 		ctx := r.Context()
 
-		user, err := app.store.Users.GetByID(ctx, userID)
-		if err != nil {
-			switch err {
-			case store.ErrNotFound:
-				app.badRequestResponse(w, r, err)
-				return
-			default:
-				app.internalServerError(w, r, err)
-				return
-			}
-		}
+// 		user, err := app.store.Users.GetByID(ctx, userID)
+// 		if err != nil {
+// 			switch err {
+// 			case store.ErrNotFound:
+// 				app.badRequestResponse(w, r, err)
+// 				return
+// 			default:
+// 				app.internalServerError(w, r, err)
+// 				return
+// 			}
+// 		}
 
-		ctx = context.WithValue(ctx, userCtx, user)
+// 		ctx = context.WithValue(ctx, userCtx, user)
 
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
+// 		next.ServeHTTP(w, r.WithContext(ctx))
+// 	})
+// }
 
 func getUserFromContext(r *http.Request) *store.User {
 	user, _ := r.Context().Value(userCtx).(*store.User)
